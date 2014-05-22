@@ -37,13 +37,17 @@ func (m linkManager) IndexUrl(crud CRUD) string {
 	return m.url("/" + crud.Name())
 }
 
+func (m linkManager) RootLink() string {
+	return m.link("/")
+}
+
 func (m linkManager) RootLinks() map[string]string {
 	links := make(map[string]string)
 	for _, c := range m.cruds {
 		links[c.Name()+" index"] = m.IndexLink(c)
 	}
-	links["root"] = "/"
-	links["self"] = "/"
+	links["root"] = m.RootLink()
+	links["self"] = m.RootLink()
 	return links
 }
 
@@ -67,7 +71,7 @@ func (m linkManager) url(partial string) string {
 func (m linkManager) AllLinksFor(c CRUD, obj interface{}) (map[string]string, error) {
 	links := make(map[string]string)
 	links[c.Name()+" index"] = m.IndexLink(c)
-	links["root"] = "/"
+	links["root"] = m.RootLink()
 	self, ok := m.SelfLink(c, obj)
 	if ok {
 		links["self"] = self
