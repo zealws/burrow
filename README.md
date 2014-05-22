@@ -1,6 +1,6 @@
-# Burrow - Golang Restful API Framework
+# Burrow
 
-Burrow is a REST API Framework designed with:
+Burrow is a REST API Framework designed with the following in mind:
 
 - Convention over Configuration
 - Simplicity
@@ -21,14 +21,36 @@ developers to write API Objects without worrying about how the resulting API wil
 
 This allows the framework to do the following **automatically**:
 
-- Automatically generate API endpoints
-- Auto-generate documentation for your API endpoints *(coming soon)*
+- Generate API endpoints
+- Generate documentation for your API endpoints *(coming soon)*
 - Manage links between referenced objects
 - Generate links in your API objects to make navigating your API dead simple
 
 ## Introduction
 
-Consider the following type:
+Burrow needs three things to function properly:
+
+- A type
+- An index accessor for the type
+- A specific accessor for the type
+
+The type itself is fairly straightforward:
+
+The Index Accessor's purpose is to fetch a list of records when asked. It should be of type `func() []interface{}`
+and should return a list of objects of the given type.
+
+The Specific Accessor's purpose is to fetch a single record based on a numerical id (types `int`,`int64`,`int32`).
+It should be of type: `func(int) interface{}` and return the object referenced by the given int, and `nil`
+if no such object exists.
+
+
+Simple example:
+
+    package main
+
+    import (
+        "github.com/zfjagann/burrow"
+    )
 
     type Book struct {
         Id     int `rest:"id"`
@@ -36,9 +58,6 @@ Consider the following type:
         ISBN   string
         Author string
     }
-
-In addition to the type itself, Burrow needs to know how to retrieve objects of this type.
-To do this, we will define two functions.
 
     var AllBooks []Book
 
@@ -54,11 +73,6 @@ To do this, we will define two functions.
         return stuff
     }
 
-The first function returns a book based on its id. The second gets a list of all the books.
-
-In a more realistic application, these would likely be DB accessors, but for the sake of example, they'll just read
-from a global variable `AllBooks`, which we will initialize in the `init` function:
-
     func init() {
         AllBooks = make([]Book, 3)
         AllBooks[0] = Book{0, "Great Expectations", "345678", "Charles Dickens"}
@@ -66,21 +80,20 @@ from a global variable `AllBooks`, which we will initialize in the `init` functi
         AllBooks[2] = Book{2, "Henry V", "123456", "William Shakespeare"}
     }
 
-Finally, we create a Burrow api and use it:
-
     func main() {
         api := burrow.NewApi()
+
         api.AddApi(Book{}, GetBook, GetBooks)
+
         api.Serve("0.0.0.0", 8080)
     }
 
-This will create a couple API endpoints that we can hit.
+The full code (completely with comments) can be found
+[here](http://github.com/zfjagann/burrow/tree/master/examples/simple.go).
 
-The full code can be found [here](http://github.com/zfjagann/burrow/tree/master/examples/simple.go).
+This example creates several endpoints which we can hit in a browser.
 
-Since Burrow is managing all the API endpoints for us, it can give us a nice index if you hit the root of the webserver.
-
-So if you hit [`http://localhost:8080/`](http://localhost:8080/) you'll see this:
+Try hitting [`http://localhost:8080/`](http://localhost:8080/) and you'll get this back:
 
     {
         "links": {
