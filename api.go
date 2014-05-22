@@ -157,7 +157,7 @@ func (api *Api) makeUpdateHandler(crud CRUD) traffic.HttpHandleFunc {
 			handle(w, err)
 			return
 		}
-		err = updateObject(crud, obj, bytes)
+		obj, err = updateObject(crud, obj, bytes)
 		if err != nil {
 			handle(w, err)
 			return

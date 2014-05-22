@@ -95,25 +95,33 @@ func getIdValue(c CRUD, obj interface{}) (int, bool) {
 	return int(fld.Int()), true
 }
 
-func updateObject(c CRUD, obj interface{}, body []byte) (err error) {
+func updateObject(c CRUD, obj interface{}, body []byte) (interface{}, error) {
 	fields := make(map[string]interface{})
-	err = json.Unmarshal(body, &fields)
+	err := json.Unmarshal(body, &fields)
 	if err != nil {
-		return
+		return nil, nil
 	}
-	val := reflect.ValueOf(obj)
-	if val.Kind() == reflect.Ptr {
-		val = reflect.Indirect(val)
-	}
-	typ := val.Type()
+	typ := reflect.TypeOf(obj)
+	result := reflect.New(typ).Elem()
+	copyStruct(result, obj)
 	for name, value := range fields {
 		_, ok := typ.FieldByName(name)
 		if !ok {
-			return ApiError(406, "Could not find", c.Name(), "field", name)
+			return nil, ApiError(406, "Could not find", c.Name(), "field", name)
 		}
-		val.FieldByName(name).Set(reflect.ValueOf(value))
+		x := reflect.ValueOf(value)
+		fld := result.FieldByName(name)
+		fld.Set(x)
 	}
-	return nil
+	return result.Interface(), nil
+}
+
+func copyStruct(to reflect.Value, obj interface{}) {
+	from := reflect.ValueOf(obj)
+	t := reflect.TypeOf(obj)
+	for i := 0; i < t.NumField(); i++ {
+		to.FieldByIndex([]int{i}).Set(from.FieldByIndex([]int{i}))
+	}
 }
 
 func linkedFieldsFor(c CRUD, obj interface{}) ([]reference, error) {
