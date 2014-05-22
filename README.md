@@ -46,103 +46,109 @@ if no such object exists.
 
 Simple example:
 
-    package main
+```go
+package main
 
-    import (
-        "github.com/zfjagann/burrow"
-    )
+import (
+    "github.com/zfjagann/burrow"
+)
 
-    type Book struct {
-        Id     int `rest:"id"`
-        Name   string
-        ISBN   string
-        Author string
+type Book struct {
+    Id     int `rest:"id"`
+    Name   string
+    ISBN   string
+    Author string
+}
+
+var AllBooks []Book
+
+func GetBook(id int) interface{} {
+    return &AllBooks[id]
+}
+
+func GetBooks() []interface{} {
+    stuff := make([]interface{}, len(AllBooks))
+    for i, thing := range AllBooks {
+        stuff[i] = thing
     }
+    return stuff
+}
 
-    var AllBooks []Book
+func init() {
+    AllBooks = make([]Book, 3)
+    AllBooks[0] = Book{0, "Great Expectations", "345678", "Charles Dickens"}
+    AllBooks[1] = Book{1, "Robinson Crusoe", "234567", "Daniel Dafoe"}
+    AllBooks[2] = Book{2, "Henry V", "123456", "William Shakespeare"}
+}
 
-    func GetBook(id int) interface{} {
-        return &AllBooks[id]
-    }
+func main() {
+    api := burrow.NewApi()
 
-    func GetBooks() []interface{} {
-        stuff := make([]interface{}, len(AllBooks))
-        for i, thing := range AllBooks {
-            stuff[i] = thing
-        }
-        return stuff
-    }
+    api.AddApi(Book{}, GetBook, GetBooks)
 
-    func init() {
-        AllBooks = make([]Book, 3)
-        AllBooks[0] = Book{0, "Great Expectations", "345678", "Charles Dickens"}
-        AllBooks[1] = Book{1, "Robinson Crusoe", "234567", "Daniel Dafoe"}
-        AllBooks[2] = Book{2, "Henry V", "123456", "William Shakespeare"}
-    }
+    api.Serve("0.0.0.0", 8080)
+}
+```
 
-    func main() {
-        api := burrow.NewApi()
-
-        api.AddApi(Book{}, GetBook, GetBooks)
-
-        api.Serve("0.0.0.0", 8080)
-    }
-
-The full code (completely with comments) can be found
+The full code (complete with comments) can be found
 [here](http://github.com/zfjagann/burrow/tree/master/examples/simple.go).
 
 This example creates several endpoints which we can hit in a browser.
 
 Try hitting [`http://localhost:8080/`](http://localhost:8080/) and you'll get this back:
 
-    {
-        "links": {
-            "book index": "http://localhost:8080/book",
-            "root": "http://localhost:8080/",
-            "self": "http://localhost:8080/"
-        }
+```json
+{
+    "links": {
+        "book index": "http://localhost:8080/book",
+        "root": "http://localhost:8080/",
+        "self": "http://localhost:8080/"
     }
+}
+```
 
 This shows us all of the top-level endpoints that are available.
 
 Now if you hit the `book index` url [`http://localhost:8080/book`](http://localhost:8080/book) you'll see a list of 
 all of our book objects:
 
-    [
-        {
-            "Author": "Charles Dickens",
-            "ISBN": "345678",
-            "Id": 0,
-            "Name": "Great Expectations",
-            "links": {
-                "book index": "http://localhost:8080/book",
-                "root": "http://localhost:8080/",
-                "self": "http://localhost:8080/book/0"
-            }
-        },
-        {
-            "Author": "Daniel Dafoe",
-            "ISBN": "234567",
-            "Id": 1,
-            "Name": "Robinson Crusoe",
-            "links": {
-                "book index": "http://localhost:8080/book",
-                "root": "http://localhost:8080/",
-                "self": "http://localhost:8080/book/1"
-            }
-        },
-        {
-            "Author": "William Shakespeare",
-            "ISBN": "123456",
-            "Id": 2,
-            "Name": "Henry V",
-            "links": {
-                "book index": "http://localhost:8080/book",
-                "root": "http://localhost:8080/",
-                "self": "http://localhost:8080/book/2"
-            }
+```json
+[
+    {
+        "Author": "Charles Dickens",
+        "ISBN": "345678",
+        "Id": 0,
+        "Name": "Great Expectations",
+        "links": {
+            "book index": "http://localhost:8080/book",
+            "root": "http://localhost:8080/",
+            "self": "http://localhost:8080/book/0"
         }
-    ]
+    },
+    {
+        "Author": "Daniel Dafoe",
+        "ISBN": "234567",
+        "Id": 1,
+        "Name": "Robinson Crusoe",
+        "links": {
+            "book index": "http://localhost:8080/book",
+            "root": "http://localhost:8080/",
+            "self": "http://localhost:8080/book/1"
+        }
+    },
+    {
+        "Author": "William Shakespeare",
+        "ISBN": "123456",
+        "Id": 2,
+        "Name": "Henry V",
+        "links": {
+            "book index": "http://localhost:8080/book",
+            "root": "http://localhost:8080/",
+            "self": "http://localhost:8080/book/2"
+        }
+    }
+]
+```
 
 Each of the objects has a link for:
 
