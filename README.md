@@ -1,8 +1,3 @@
-Burrow
-======
-
-Golang Restful API Framework
-=======
 # Burrow - Golang Restful API Framework
 
 Burrow is a REST API Framework designed with:
