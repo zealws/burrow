@@ -109,8 +109,8 @@ Try hitting [`http://localhost:8080/`](http://localhost:8080/) and you'll get th
 
 This shows us all of the top-level endpoints that are available.
 
-Now if you hit the `book index` url [`http://localhost:8080/book`](http://localhost:8080/book) you'll see a list of 
-all of our book objects:
+Now if you hit the `book index` url [`http://localhost:8080/book`](http://localhost:8080/book) you'll see a list of
+book objects:
 
 ```json
 [
@@ -158,7 +158,17 @@ Each of the objects has a link for:
 
 These links make the APIs very easy to navigate.
 
-Burrow also has the ability to create links to related objects. For an example of this, see
+In addition to the GET endpoints described above, burrow also exposes PUT endpoints for updating objects:
+
+```bash
+$ curl -X PUT -d '{"Name": "Not-So-Great Expectations"}' http://localhost:8080/book/0
+```
+
+We get back the JSON object for the record we just updated:
+
+## More Examples
+
+Burrow has the ability to create links to related objects. See
 [examples/references.go](http://github.com/zfjagann/burrow/tree/master/examples/references.go).
 
 ## Dependencies
