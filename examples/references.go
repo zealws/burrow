@@ -9,19 +9,28 @@ type Book struct {
 	Name      string
 	ISBN      string
 	Author    string
-	LibraryId int `references:"library" link_name:"owner"`
+	LibraryId int `references:"Library" link_name:"owner"`
 }
 
-func GetBook(id int) interface{} {
-	return &AllBooks[id]
+func GetBook(id int) (interface{}, error) {
+	if id < 0 || id >= len(AllBooks) {
+		return nil, burrow.ApiError(404, "Could not find book with id:", id)
+	}
+	return &AllBooks[id], nil
 }
 
-func GetBooks() []interface{} {
+func GetBooks() ([]interface{}, error) {
 	stuff := make([]interface{}, len(AllBooks))
 	for i, thing := range AllBooks {
 		stuff[i] = thing
 	}
-	return stuff
+	return stuff, nil
+}
+
+func UpdateBook(obj interface{}) error {
+	book := obj.(*Book)
+	AllBooks[book.Id] = *book
+	return nil
 }
 
 type Library struct {
@@ -30,16 +39,19 @@ type Library struct {
 	Location string
 }
 
-func GetLibrary(id int) interface{} {
-	return &AllLibraries[id]
+func GetLibrary(id int) (interface{}, error) {
+	if id < 0 || id >= len(AllLibraries) {
+		return nil, burrow.ApiError(404, "Could not find library with id:", id)
+	}
+	return &AllLibraries[id], nil
 }
 
-func GetLibraries() []interface{} {
+func GetLibraries() ([]interface{}, error) {
 	stuff := make([]interface{}, len(AllLibraries))
 	for i, thing := range AllLibraries {
 		stuff[i] = thing
 	}
-	return stuff
+	return stuff, nil
 }
 
 var AllBooks []Book
@@ -58,7 +70,8 @@ func init() {
 
 func main() {
 	api := burrow.NewApi()
-	api.AddApi(Book{}, GetBook, GetBooks)
-	api.AddApi(Library{}, GetLibrary, GetLibraries)
+
+	api.Add(burrow.New(Book{}, nil, GetBook, GetBooks, UpdateBook, nil))
+	api.Add(burrow.New(Library{}, nil, GetLibrary, GetLibraries, nil, nil))
 	api.Serve("0.0.0.0", 8080)
 }

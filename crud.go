@@ -50,7 +50,7 @@ type CRUD interface {
 	Index() ([]interface{}, error)
 
 	/*
-		Delete the given object.
+		Delete the object specified by the given id.
 		Returns nil if successful, and an error otherwise.
 	*/
 	Delete(int) error

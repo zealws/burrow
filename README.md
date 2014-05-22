@@ -28,23 +28,7 @@ This allows the framework to do the following **automatically**:
 
 ## Introduction
 
-Burrow needs three things to function properly:
-
-- A type
-- An index accessor for the type
-- A specific accessor for the type
-
-The type itself is fairly straightforward:
-
-The Index Accessor's purpose is to fetch a list of records when asked. It should be of type `func() []interface{}`
-and should return a list of objects of the given type.
-
-The Specific Accessor's purpose is to fetch a single record based on a numerical id (types `int`,`int64`,`int32`).
-It should be of type: `func(int) interface{}` and return the object referenced by the given int, and `nil`
-if no such object exists.
-
-
-Simple example:
+The following go code will define an API for managing books, complete with links and endpoints to update records:
 
 ```go
 package main
@@ -62,19 +46,29 @@ type Book struct {
 
 var AllBooks []Book
 
-func GetBook(id int) interface{} {
-    return &AllBooks[id]
+func GetBook(id int) (interface{}, error) {
+    if id < 0 || id >= len(AllBooks) {
+        return nil, burrow.ApiError(404, "Could not find book with id: ", id)
+    }
+    return &AllBooks[id], nil
 }
 
-func GetBooks() []interface{} {
+func GetBooks() ([]interface{}, error) {
     stuff := make([]interface{}, len(AllBooks))
     for i, thing := range AllBooks {
         stuff[i] = thing
     }
-    return stuff
+    return stuff, nil
+}
+
+func UpdateBook(obj interface{}) error {
+    book := obj.(*Book)
+    AllBooks[book.Id] = *book
+    return nil
 }
 
 func init() {
+    // Create dummy data...
     AllBooks = make([]Book, 3)
     AllBooks[0] = Book{0, "Great Expectations", "345678", "Charles Dickens"}
     AllBooks[1] = Book{1, "Robinson Crusoe", "234567", "Daniel Dafoe"}
@@ -84,33 +78,35 @@ func init() {
 func main() {
     api := burrow.NewApi()
 
-    api.AddApi(Book{}, GetBook, GetBooks)
+    api.Add(burrow.New(Book{}, nil, GetBook, GetBooks, UpdateBook, nil))
 
+    // Run the server!
     api.Serve("0.0.0.0", 8080)
 }
 ```
 
-The full code (complete with comments) can be found
-[here](http://github.com/zfjagann/burrow/tree/master/examples/simple.go).
+For the complete example see
+[examples/simple.go](http://github.com/zfjagann/burrow/blob/develop/examples/simple.go).
 
-This example creates several endpoints which we can hit in a browser.
+### The API
 
-Try hitting [`http://localhost:8080/`](http://localhost:8080/) and you'll get this back:
+We can start using the API immediately. Start by hitting the root of the server: `http://localhost:8080/`.
+
+The response JSON looks like:
 
 ```json
 {
     "links": {
-        "book index": "http://localhost:8080/book",
-        "root": "http://localhost:8080/",
-        "self": "http://localhost:8080/"
+        "Book index": "http://localhost:8080/book",
+        "root": "/",
+        "self": "/"
     }
 }
 ```
 
-This shows us all of the top-level endpoints that are available.
+The links provided in the output indicate which endpoints are available.
 
-Now if you hit the `book index` url [`http://localhost:8080/book`](http://localhost:8080/book) you'll see a list of
-book objects:
+Now follow the `Book index` link:
 
 ```json
 [
@@ -120,8 +116,8 @@ book objects:
         "Id": 0,
         "Name": "Great Expectations",
         "links": {
-            "book index": "http://localhost:8080/book",
-            "root": "http://localhost:8080/",
+            "Book index": "http://localhost:8080/book",
+            "root": "/",
             "self": "http://localhost:8080/book/0"
         }
     },
@@ -131,8 +127,8 @@ book objects:
         "Id": 1,
         "Name": "Robinson Crusoe",
         "links": {
-            "book index": "http://localhost:8080/book",
-            "root": "http://localhost:8080/",
+            "Book index": "http://localhost:8080/book",
+            "root": "/",
             "self": "http://localhost:8080/book/1"
         }
     },
@@ -142,29 +138,92 @@ book objects:
         "Id": 2,
         "Name": "Henry V",
         "links": {
-            "book index": "http://localhost:8080/book",
-            "root": "http://localhost:8080/",
+            "Book index": "http://localhost:8080/book",
+            "root": "/",
             "self": "http://localhost:8080/book/2"
         }
     }
 ]
 ```
 
-Each of the objects has a link for:
+We get back our dummy book data that we setup. Each of the records also has a link to themselves to allow you to show an individual record.
 
-- themselves
-- the index for their type
-- a link to the root of the server
-
-These links make the APIs very easy to navigate.
-
-In addition to the GET endpoints described above, burrow also exposes PUT endpoints for updating objects:
+Since we defined `UpdateBook` and handed it to the API, we can also update book objects:
 
 ```bash
-$ curl -X PUT -d '{"Name": "Not-So-Great Expectations"}' http://localhost:8080/book/0
+$ curl -XPUT -d '{"Author":"Willem Dafoe"}' http://localhost:8080/book/1
 ```
 
-We get back the JSON object for the record we just updated:
+Gives us back:
+```json
+{
+    "Author": "Willem Dafoe",
+    "ISBN": "234567",
+    "Id": 1,
+    "Name": "Robinson Crusoe",
+    "links": {
+        "Book index": "http://localhost:8080/book",
+        "root": "/",
+        "self": "http://localhost:8080/book/1"
+    }
+}
+```
+
+
+### The CRUD
+
+The CRUD model defined above for managing books includes functions for viewing and modifying books. This is
+sufficient for a simple application, but a more thorough CRUD model would also allow deletion and addition of books.
+
+The `burrow.CRUD` interface provides an interface for users to define full CRUDs.
+
+The `CRUD` includes 7 methods that can be used to manipulate objects.
+
+```go
+type CRUD interface {
+    /*
+        Returns the name of the type that this CRUD represents.
+
+        This is used to determine URIs.
+    */
+    Name() string
+
+    /*
+        Returns the reflected type of the object this CRUD manages.
+    */
+    Reflect() reflect.Type
+
+    /*
+        Create a new object and return it.
+    */
+    Create() (interface{}, error)
+
+    /*
+        Update a given object.
+        Returns nil if successful, and an error otherwise.
+    */
+    Update(interface{}) error
+
+    /*
+        Load and return a single object.
+        The error return value will be nil if successful, and non-nil otherwise.
+    */
+    Read(int) (interface{}, error)
+
+    /*
+        Load and return all objects.
+        The error return value will be nil if succesful, and non-nil otherwise.
+    */
+    Index() ([]interface{}, error)
+
+    /*
+        Delete the object specified by the given id.
+        Returns nil if successful, and an error otherwise.
+    */
+    Delete(int) error
+}
+```
+
 
 ## More Examples
 

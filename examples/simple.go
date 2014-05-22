@@ -24,7 +24,7 @@ This function would likely be a database lookup in a more realistic application.
 */
 func GetBook(id int) (interface{}, error) {
 	if id < 0 || id >= len(AllBooks) {
-		return nil, burrow.ApiError(404, "Could not find book with id: ", id)
+		return nil, burrow.ApiError(404, "Could not find book with id:", id)
 	}
 	return &AllBooks[id], nil
 }
@@ -64,8 +64,11 @@ func init() {
 func main() {
 	api := burrow.NewApi()
 
-	// Add the Book type as an API Object using the given CRUD methods.
-	api.Add(burrow.New(Book{}, nil, GetBook, GetBooks, UpdateBook, nil))
+	// Create a CRUD which is used to manage our Book object
+	bookCrud := burrow.New(Book{}, nil, GetBook, GetBooks, UpdateBook, nil)
+
+	// Add the Book CRUD to the server
+	api.Add(bookCrud)
 
 	// Run the server!
 	api.Serve("0.0.0.0", 8080)

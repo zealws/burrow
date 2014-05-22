@@ -3,7 +3,6 @@ package burrow
 import (
 	"encoding/json"
 	"github.com/pilu/traffic"
-	"net/http"
 )
 
 func marshalObject(lm linkManager, crud CRUD, obj interface{}) ([]byte, error) {
@@ -24,16 +23,16 @@ func marshalObject(lm linkManager, crud CRUD, obj interface{}) ([]byte, error) {
 	return json.Marshal(x)
 }
 
-func writeJsonObject(lm linkManager, crud CRUD, w traffic.ResponseWriter, obj interface{}) {
+func writeJsonObject(lm linkManager, crud CRUD, w traffic.ResponseWriter, obj interface{}) error {
 	bytes, err := marshalObject(lm, crud, obj)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.WriteText("Could not marshal json response.")
+		return err
 	}
 	w.Write(bytes)
+	return nil
 }
 
-func writeJsonObjects(lm linkManager, crud CRUD, w traffic.ResponseWriter, objs []interface{}) {
+func writeJsonObjects(lm linkManager, crud CRUD, w traffic.ResponseWriter, objs []interface{}) error {
 	// Warning: Magic Number here.
 	// Want this to be as close to the size in byte of the resulting JSON object.
 	// Guestimating 100 bytes per object in the list. Probably short, but it's a place to start.
@@ -48,11 +47,11 @@ func writeJsonObjects(lm linkManager, crud CRUD, w traffic.ResponseWriter, objs 
 		}
 		byts, err := marshalObject(lm, crud, o)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.WriteText("Could not marshal json response.")
+			return err
 		}
 		bytes = append(bytes, byts...)
 	}
 	bytes = append(bytes, byte(']'))
 	w.Write(bytes)
+	return nil
 }

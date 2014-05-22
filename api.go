@@ -10,7 +10,7 @@ import (
 )
 
 /**
-*** ApiError Type
+*** Error Types
 ***/
 
 type Error struct {
@@ -94,7 +94,11 @@ func (api *Api) makeReadHandler(crud CRUD) traffic.HttpHandleFunc {
 			handle(w, err)
 			return
 		}
-		writeJsonObject(lm, crud, w, obj)
+		err = writeJsonObject(lm, crud, w, obj)
+		if err != nil {
+			handle(w, err)
+			return
+		}
 	}
 	return traffic.HttpHandleFunc(f)
 }
@@ -107,7 +111,11 @@ func (api *Api) makeIndexHandler(crud CRUD) traffic.HttpHandleFunc {
 			handle(w, err)
 			return
 		}
-		writeJsonObjects(lm, crud, w, index)
+		err = writeJsonObjects(lm, crud, w, index)
+		if err != nil {
+			handle(w, err)
+			return
+		}
 	}
 	return traffic.HttpHandleFunc(f)
 }
@@ -121,7 +129,11 @@ func (api *Api) makeCreateHandler(crud CRUD) traffic.HttpHandleFunc {
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		writeJsonObject(lm, crud, w, obj)
+		err = writeJsonObject(lm, crud, w, obj)
+		if err != nil {
+			handle(w, err)
+			return
+		}
 	}
 	return traffic.HttpHandleFunc(f)
 }
@@ -155,7 +167,11 @@ func (api *Api) makeUpdateHandler(crud CRUD) traffic.HttpHandleFunc {
 			handle(w, err)
 			return
 		}
-		writeJsonObject(lm, crud, w, obj)
+		err = writeJsonObject(lm, crud, w, obj)
+		if err != nil {
+			handle(w, err)
+			return
+		}
 	}
 	return traffic.HttpHandleFunc(f)
 }
