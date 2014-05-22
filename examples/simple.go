@@ -22,21 +22,33 @@ Accessor for a single book, by id.
 
 This function would likely be a database lookup in a more realistic application.
 */
-func GetBook(id int) interface{} {
-	return &AllBooks[id]
+func GetBook(id int) (interface{}, error) {
+	if id < 0 || id >= len(AllBooks) {
+		return nil, burrow.ApiError(404, "Could not find book with id: ", id)
+	}
+	return &AllBooks[id], nil
 }
 
 /*
-Accessor for all the books.
+Index of all the books.
 
 This function would likely be a database lookup in a more realistic application.
 */
-func GetBooks() []interface{} {
+func GetBooks() ([]interface{}, error) {
 	stuff := make([]interface{}, len(AllBooks))
 	for i, thing := range AllBooks {
 		stuff[i] = thing
 	}
-	return stuff
+	return stuff, nil
+}
+
+/*
+Update a given book.
+*/
+func UpdateBook(obj interface{}) error {
+	book := obj.(*Book)
+	AllBooks[book.Id] = *book
+	return nil
 }
 
 /*
@@ -52,8 +64,8 @@ func init() {
 func main() {
 	api := burrow.NewApi()
 
-	// Add the Book type as an API Object using the given accessors.
-	api.AddApi(Book{}, GetBook, GetBooks)
+	// Add the Book type as an API Object using the given CRUD methods.
+	api.Add(burrow.New(Book{}, nil, GetBook, GetBooks, UpdateBook, nil))
 
 	// Run the server!
 	api.Serve("0.0.0.0", 8080)
