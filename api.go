@@ -1,211 +1,31 @@
-package rest
+package burrow
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/pilu/traffic"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 )
-
-type SpecificGetter func(int) interface{}
-type GeneralGetter func() []interface{}
-
-type ApiType interface {
-	Name() string
-	Reflect() reflect.Type
-	RootGetter() GeneralGetter
-	IndividualGetter() SpecificGetter
-}
-
-type typeImpl struct {
-	name string
-	refl reflect.Type
-	spec SpecificGetter
-	gen  GeneralGetter
-}
-
-func (t typeImpl) Name() string {
-	return t.name
-}
-
-func (t typeImpl) Reflect() reflect.Type {
-	return t.refl
-}
-
-func (t typeImpl) IndividualGetter() SpecificGetter {
-	return t.spec
-}
-
-func (t typeImpl) RootGetter() GeneralGetter {
-	return t.gen
-}
-
-/*
-ApiType Helpers
-*/
-
-func getApiType(obj interface{}, spec SpecificGetter, gen GeneralGetter) ApiType {
-	typ := reflect.TypeOf(obj)
-	return typeImpl{
-		name: typ.Name(),
-		refl: typ,
-		spec: spec,
-		gen:  gen,
-	}
-}
-
-func getIdField(t ApiType) string {
-	typ := t.Reflect()
-	for i := 0; i < typ.NumField(); i++ {
-		fld := typ.FieldByIndex([]int{i})
-		restTag := fld.Tag.Get("rest")
-		if restTag == "id" {
-			return fld.Name
-		}
-	}
-	return ""
-}
-
-func getIdValue(t ApiType, obj interface{}) (int, bool) {
-	idField := getIdField(t)
-	if idField == "" {
-		return 0, false
-	}
-	val := reflect.ValueOf(obj)
-	if val.Kind() == reflect.Ptr {
-		val = reflect.Indirect(val)
-	}
-	fld := val.FieldByName(idField)
-	return int(fld.Int()), true
-}
-
-func selfLinkFor(t ApiType, obj interface{}) (self string, ok bool) {
-	id, ok := getIdValue(t, obj)
-	self = strings.ToLower(fmt.Sprintf("/%s/%d", t.Name(), id))
-	return
-}
-
-func indexLinkFor(t ApiType) string {
-	return strings.ToLower("/" + t.Name())
-}
-
-func linksFor(t ApiType, obj interface{}) map[string]string {
-	links := make(map[string]string)
-	links["index"] = indexLinkFor(t)
-	self, ok := selfLinkFor(t, obj)
-	if ok {
-		links["self"] = self
-	}
-	return links
-}
-
-/*
-Handler Generators
-*/
-
-func makeSpecificHandler(t ApiType) traffic.HttpHandleFunc {
-	f := func(w traffic.ResponseWriter, r *traffic.Request) {
-		params := r.URL.Query()
-		id, err := strconv.Atoi(params.Get("id"))
-		if err != nil {
-			w.WriteHeader(http.StatusNotAcceptable)
-			fmt.Fprintf(w, "Invalid ID: ", params.Get("id"))
-		}
-		writeJsonObject(r.Host, w, t, t.IndividualGetter()(id))
-	}
-	return traffic.HttpHandleFunc(f)
-}
-
-func makeGenericHandler(t ApiType) traffic.HttpHandleFunc {
-	f := func(w traffic.ResponseWriter, r *traffic.Request) {
-		writeJsonObjects(r.Host, w, t, t.RootGetter()())
-	}
-	return traffic.HttpHandleFunc(f)
-}
-
-func getHandlers(t ApiType) map[string]traffic.HttpHandleFunc {
-	results := make(map[string]traffic.HttpHandleFunc)
-	root := indexLinkFor(t)
-	generic := makeGenericHandler(t)
-	results[root] = generic
-	results[root+"/"] = generic
-	results[root+"/:id"] = makeSpecificHandler(t)
-	return results
-}
-
-/*
-JSON FormatterswriteJsonObjects
-*/
-
-func fixLinks(host string, links *map[string]string) {
-	for name, url := range *links {
-		(*links)[name] = fmt.Sprintf("http://%s%s", host, url)
-	}
-}
-
-func marshalObject(host string, t ApiType, obj interface{}) ([]byte, error) {
-	links := linksFor(t, obj)
-	jsn, err := json.Marshal(obj)
-	if err != nil {
-		return nil, err
-	}
-	x := make(map[string]interface{})
-	err = json.Unmarshal(jsn, &x)
-	if err != nil {
-		return nil, err
-	}
-	fixLinks(host, &links)
-	x["links"] = links
-	return json.Marshal(x)
-}
-
-func writeJsonObject(host string, w traffic.ResponseWriter, t ApiType, obj interface{}) {
-	bytes, err := marshalObject(host, t, obj)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.WriteText("Could not marshal json response.")
-	}
-	w.Write(bytes)
-}
-
-func writeJsonObjects(host string, w traffic.ResponseWriter, t ApiType, objs []interface{}) {
-	bytes := make([]byte, 0, len(objs)*100)
-	bytes = append(bytes, byte('['))
-	first := true
-	for _, o := range objs {
-		if first {
-			first = false
-		} else {
-			bytes = append(bytes, byte(','))
-		}
-		byts, err := marshalObject(host, t, o)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.WriteText("Could not marshal json response.")
-		}
-		bytes = append(bytes, byts...)
-	}
-	bytes = append(bytes, byte(']'))
-	w.Write(bytes)
-}
 
 /*
 Api Type
 */
 
 type Api struct {
-	types []ApiType
+	types []ApiDescription
 }
 
 func NewApi() (api *Api) {
-	return &Api{make([]ApiType, 0)}
+	return &Api{make([]ApiDescription, 0)}
 }
 
-func (api *Api) AddApi(obj interface{}, spec SpecificGetter, gen GeneralGetter) {
-	typ := getApiType(obj, spec, gen)
+func (api *Api) AddApi(obj interface{}, getter ObjectGetter, index IndexGetter) {
+	typ := getApiDescription(obj, getter, index)
+	api.types = append(api.types, typ)
+}
+
+func (api *Api) Add(typ ApiDescription) {
 	api.types = append(api.types, typ)
 }
 
@@ -214,9 +34,80 @@ func (api *Api) Serve(addr string, port int) {
 	traffic.SetHost(addr)
 	router := traffic.New()
 	for _, t := range api.types {
-		for url, handler := range getHandlers(t) {
-			router.Get(url, handler)
+		api.addHandlersTo(t, router)
+	}
+	router.Get("/", api.rootHandler())
+	router.Run()
+}
+
+func (api *Api) makeIndexLinks() map[string]string {
+	links := make(map[string]string)
+	for _, t := range api.types {
+		links[t.Name()+" index"] = indexLinkFor(t)
+	}
+	links["root"] = "/"
+	links["self"] = "/"
+	return links
+}
+
+func (api *Api) rootHandler() traffic.HttpHandleFunc {
+	links := api.makeIndexLinks()
+	handler := func(w traffic.ResponseWriter, r *traffic.Request) {
+		root := make(map[string]interface{})
+		// Have to copy the map each time since fixLinks modifies it, and the links object
+		// above is common to all requests.
+		// Not a huge deal since it's O(Number of API object types), which should be small.
+		myLinks := copyMap(links)
+		fixLinks(r.Host, &myLinks)
+		root["links"] = myLinks
+		w.WriteJSON(root)
+	}
+	return traffic.HttpHandleFunc(handler)
+}
+
+func copyMap(old map[string]string) map[string]string {
+	knew := make(map[string]string)
+	for k, v := range old {
+		knew[k] = v
+	}
+	return knew
+}
+
+func (api *Api) makeSpecificHandler(t ApiDescription) traffic.HttpHandleFunc {
+	f := func(w traffic.ResponseWriter, r *traffic.Request) {
+		params := r.URL.Query()
+		id, err := strconv.Atoi(params.Get("id"))
+		if err != nil {
+			w.WriteHeader(http.StatusNotAcceptable)
+			fmt.Fprintln(w, "Invalid ID: ", params.Get("id"))
+		}
+		writeJsonObject(api, r.Host, w, t, t.Getter()(id))
+	}
+	return traffic.HttpHandleFunc(f)
+}
+
+func (api *Api) makeGenericHandler(t ApiDescription) traffic.HttpHandleFunc {
+	f := func(w traffic.ResponseWriter, r *traffic.Request) {
+		writeJsonObjects(api, r.Host, w, t, t.Index()())
+	}
+	return traffic.HttpHandleFunc(f)
+}
+
+func (api *Api) addHandlersTo(t ApiDescription, router *traffic.Router) map[string]traffic.HttpHandleFunc {
+	results := make(map[string]traffic.HttpHandleFunc)
+	root := indexLinkFor(t)
+	generic := api.makeGenericHandler(t)
+	router.Get(root, generic)
+	router.Get(root+"/", generic)
+	router.Get(root+"/:id", api.makeSpecificHandler(t))
+	return results
+}
+
+func (api *Api) getType(name string) *ApiDescription {
+	for _, t := range api.types {
+		if strings.ToLower(name) == strings.ToLower(t.Name()) {
+			return &t
 		}
 	}
-	router.Run()
+	return nil
 }
